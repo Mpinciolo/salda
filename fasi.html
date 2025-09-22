@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <title>Fasi di Lavoro</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; background: #f9f9f9; margin: 0; padding: 20px; }
+    #faseImage { max-width: 250px; margin: 15px auto; display: block; }
+    button { display: block; width: 80%; max-width: 300px; margin: 15px auto; padding: 16px; font-size: 18px; border: none; border-radius: 12px; background: #4CAF50; color: white; font-weight: bold; cursor: pointer; }
+    button.hidden { display: none; }
+    #timer { font-size: 40px; margin: 20px 0; font-weight: bold; color: #333; }
+    #totalTimer { font-size: 22px; margin: 10px 0; color: #555; }
+    #faseCorrente { font-size: 22px; font-weight: bold; margin: 15px 0; }
+    .alert { background: #ffe08a; padding: 15px; margin: 20px auto; border-radius: 12px; max-width: 320px; font-size: 18px; font-weight: bold; }
+    .hidden { display: none; }
+    #progressContainer { width: 90%; height: 20px; background: #ddd; border-radius: 10px; margin: 20px auto; overflow: hidden; }
+    #progressBar { height: 100%; width: 0%; background: #4CAF50; }
+    #log { text-align: left; margin-top: 20px; font-size: 14px; }
+    table { border-collapse: collapse; margin: 20px auto; width: 90%; max-width: 500px; }
+    table, th, td { border: 1px solid #666; padding: 6px; text-align: center; font-size: 14px; }
+    th { background: #ddd; }
+    .blink { animation: blink 1s step-start infinite; color: red; }
+    #restartBtn { font-size: 12px; margin-top: 20px; background: #888; }
+  </style>
+</head>
+<body>
+
+  <!-- Fase attuale -->
+  <div id="faseCorrente">Fase attuale: --</div>
+
+  <!-- Immagine fase -->
+  <img id="faseImage" src="preriscaldo.png" alt="Fase in corso">
+
+  <!-- Bottoni fasi -->
+  <button id="btnPreriscaldo">🔥 Avvia Preriscaldo (20s)</button>
+  <button id="btnColatura" class="hidden">⚙️ Avvia Colatura (40s)</button>
+
+  <!-- Timer -->
+  <div id="timer">--</div>
+  <div id="totalTimer" class="hidden">Tempo totale colatura: 0s</div>
+
+  <!-- Barra di caricamento -->
+  <div id="progressContainer"><div id="progressBar"></div></div>
+
+  <!-- Avvisi -->
+  <div id="avviso" class="alert hidden"></div>
+  <button id="btnConferma" class="hidden">✅ Conferma Operazione</button>
+
+  <!-- Log -->
+  <div id="log"><h3>📜 Log</h3></div>
+
+  <!-- Tabella riepilogo -->
+  <table id="riepilogo">
+    <thead><tr><th>Fase</th><th>Tempo programmato</th><th>Tempo effettivo</th></tr></thead>
+    <tbody>
+      <tr><td>Preriscaldo</td><td>20s</td><td id="effPreriscaldo">--</td></tr>
+      <tr><td>Colatura</td><td>40s</td><td id="effColatura">--</td></tr>
+      <tr><td>Tranciare</td><td>+20s</td><td id="effTrancia">--</td></tr>
+      <tr><td>Smerigliatura</td><td>Fine</td><td id="effSmeriglia">--</td></tr>
+    </tbody>
+  </table>
+
+  <!-- Rinizia -->
+  <button id="restartBtn">🔄 Rinizia da capo</button>
+
+  <!-- Suono -->
+  <audio id="beep" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg"></audio>
+
+<script>
+  let timerEl = document.getElementById("timer");
+  let totalTimerEl = document.getElementById("totalTimer");
+  let avvisoEl = document.getElementById("avviso");
+  let btnConferma = document.getElementById("btnConferma");
+  let faseImage = document.getElementById("faseImage");
+  let faseCorrenteEl = document.getElementById("faseCorrente");
+  let beep = document.getElementById("beep");
+
+  let currentTimer = null, totalTimer = null;
+  let remainingTime = 0, faseAttuale = "", startTime = 0;
+  let beepInterval = null;
+
+  function startTimer(seconds, fase) {
+    clearInterval(currentTimer);
+    remainingTime = seconds;
+    faseAttuale = fase;
+    startTime = Date.now();
+    timerEl.textContent = `⏱️ ${remainingTime}s`;
+    document.getElementById("progressBar").style.width = "0%";
+
+    if (fase === "preriscaldo") { 
+      faseCorrenteEl.textContent = "Fase attuale: Preriscaldo"; 
+      faseImage.src = "preriscaldo.png";
+    }
+    if (fase === "colatura") { 
+      faseCorrenteEl.textContent = "Fase attuale: Colatura"; 
+      faseImage.src = "colatura.png"; 
+    }
+
+    currentTimer = setInterval(() => {
+      remainingTime--;
+      timerEl.textContent = `⏱️ ${remainingTime}s`;
+      let progress = ((seconds - remainingTime) / seconds) * 100;
+      document.getElementById("progressBar").style.width = progress + "%";
+
+      if (remainingTime <= 10 && remainingTime > 0) {
+        timerEl.classList.add("blink");
+        if (!beepInterval) beepInterval = setInterval(() => beep.play(), 1000);
+      }
+
+      if (fase === "colatura" && remainingTime === 20) {
+        mostraAvviso("✂️ TRANCIARE ORA!", "trancia.png");
+        aggiornaLog("Avviso TRANCIARE attivo");
+        faseCorrenteEl.textContent = "Fase attuale: Tranciare"; // ✅ Aggiorna fase
+      }
+
+      if (remainingTime <= 0) {
+        clearInterval(currentTimer);
+        timerEl.classList.remove("blink");
+        stopBeep();
+        if (fase === "preriscaldo") {
+          mostraAvviso("🔥 Preriscaldo completato! Conferma per continuare.", "preriscaldo.png");
+        } else if (fase === "colatura") {
+          mostraAvviso("⚙️ Colatura terminata! Ora eseguire SMERIGLIATURA.", "smeriglia.png");
+        }
+      }
+    }, 1000);
+  }
+
+  function mostraAvviso(testo, img) {
+    avvisoEl.textContent = testo;
+    avvisoEl.classList.remove("hidden");
+    btnConferma.classList.remove("hidden");
+    if (img) faseImage.src = img;
+    stopBeep();
+    beepInterval = setInterval(() => beep.play(), 1000);
+  }
+
+  function nascondiAvviso() {
+    avvisoEl.classList.add("hidden");
+    btnConferma.classList.add("hidden");
+    stopBeep();
+  }
+
+  function stopBeep() {
+    if (beepInterval) { clearInterval(beepInterval); beepInterval = null; }
+  }
+
+  function aggiornaLog(msg) {
+    let ora = new Date().toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"});
+    document.getElementById("log").innerHTML += `<div>[${ora}] ${msg}</div>`;
+  }
+
+  function aggiornaTabella(fase, idCell) {
+    let tempoEff = Math.round((Date.now() - startTime) / 1000);
+    document.getElementById(idCell).textContent = tempoEff + "s";
+  }
+
+  document.getElementById("btnPreriscaldo").addEventListener("click", () => {
+    document.getElementById("btnPreriscaldo").classList.add("hidden");
+    startTimer(20, "preriscaldo");
+    aggiornaLog("Avviato Preriscaldo");
+  });
+
+  document.getElementById("btnColatura").addEventListener("click", () => {
+    document.getElementById("btnColatura").classList.add("hidden");
+    startTimer(40, "colatura");
+    aggiornaLog("Avviata Colatura");
+    totalTimerEl.classList.remove("hidden");
+    if (!totalTimer) {
+      let tot = 0;
+      totalTimer = setInterval(() => {
+        tot++;
+        totalTimerEl.textContent = `Tempo totale colatura: ${tot}s`;
+      }, 1000);
+    }
+  });
+
+  btnConferma.addEventListener("click", () => {
+    if (faseAttuale === "preriscaldo" && remainingTime <= 0) {
+      aggiornaLog("Completato Preriscaldo");
+      aggiornaTabella("Preriscaldo", "effPreriscaldo");
+      document.getElementById("btnColatura").classList.remove("hidden");
+    }
+    else if (faseAttuale === "colatura" && remainingTime === 20) {
+      aggiornaLog("✅ TRANCIARE confermato");
+      aggiornaTabella("Trancia", "effTrancia");
+    }
+    else if (faseAttuale === "colatura" && remainingTime <= 0) {
+      aggiornaLog("Confermato SMERIGLIATURA");
+      aggiornaTabella("Colatura", "effColatura");
+      aggiornaTabella("Smerigliatura", "effSmeriglia");
+      faseCorrenteEl.textContent = "Fase attuale: Smerigliatura"; // ✅ Aggiorna fase
+    }
+    nascondiAvviso();
+  });
+
+  document.getElementById("restartBtn").addEventListener("click", () => {
+    if (confirm("Vuoi davvero tornare alla home e azzerare tutto?")) location.reload();
+  });
+</script>
+
+</body>
+</html>
