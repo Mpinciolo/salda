@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1.0" />
+<title>Fasi di Lavoro</title>
+<style>
+  body{font-family:Arial, sans-serif;background:#fff;color:#000;margin:0;padding:0;text-align:center}
+  header{background:#000;color:#fff;padding:15px;font-size:1.4rem;font-weight:700}
+  h2{margin:10px 0;font-size:1.2rem;color:#d00}
+  img{max-width:80%;max-height:180px;margin:15px auto;display:block}
+  .timer{font-size:1.9rem;margin:8px 0}
+  .total-timer{font-size:1rem;margin:6px 0;color:#000}
+  .buttons{margin:14px 0}
+  button{display:block;width:80%;max-width:320px;margin:10px auto;padding:14px;font-size:1.1rem;border:none;border-radius:12px;cursor:pointer}
+  button.start{background:#000;color:#fff}
+  button.start:hover{background:#d00}
+  button.confirm{background:#d00;color:#fff}
+  button.confirm:hover{background:#000}
+  .progress-container{width:90%;max-width:420px;height:20px;background:#eee;border-radius:12px;margin:12px auto;overflow:hidden}
+  .progress-bar{height:100%;width:0%;background:#0f0;transition:width 1s linear}
+  .log{margin:16px;text-align:left;padding:0 8px}
+  .log h3{font-size:1.1rem;margin-bottom:8px;color:#000}
+  table{width:100%;border-collapse:collapse;margin-top:8px;font-size:0.9rem}
+  th,td{border:1px solid #000;padding:6px;text-align:center}
+  th{background:#000;color:#fff}
+  .blink{animation:blink 1s step-start infinite;color:#d00 !important}
+  @keyframes blink{50%{opacity:0}}
+  footer{margin:14px}
+  footer button{font-size:0.9rem;background:transparent;color:#000;border:1px solid #000;border-radius:8px;padding:6px 10px;cursor:pointer}
+</style>
+</head>
+<body>
+
+<header>Fasi di Lavoro</header>
+
+<h2 id="faseAttuale">In attesa di avvio</h2>
+<img id="faseImage" src="preriscaldo.png" alt="Fase attuale">
+<div class="timer" id="faseTimer">00:00 / 00:00</div>
+<div class="progress-container"><div class="progress-bar" id="progressBar"></div></div>
+<div class="total-timer" id="colaturaTotalTimer"></div>
+
+<div class="buttons">
+  <button id="startPreriscaldo" class="start">Avvia Preriscaldo</button>
+  <button id="confirmPreriscaldo" class="confirm" style="display:none">Preriscaldo completato</button>
+
+  <button id="startColatura" class="start" style="display:none">Avvia Colatura</button>
+  <button id="confirmTrancia" class="confirm" style="display:none">Tranciare Ora</button>
+  <button id="confirmSmerigliatura" class="confirm" style="display:none">Smerigliatura completata</button>
+</div>
+
+<div class="log">
+  <h3>Orari delle Fasi</h3>
+  <ul id="logList"></ul>
+  <h3>Riepilogo</h3>
+  <table>
+    <thead><tr><th>Fase</th><th>Tempo programmato</th><th>Tempo effettivo</th></tr></thead>
+    <tbody id="riepilogoTable">
+      <tr><td>Preriscaldo</td><td>01:45</td><td>--:--</td></tr>
+      <tr><td>Colatura</td><td>30:00</td><td>--:--</td></tr>
+      <tr><td>Tranciatura</td><td>05:30</td><td>--:--</td></tr>
+      <tr><td>Smerigliatura</td><td>30:00</td><td>--:--</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<footer><button onclick="restart()">Rinizia da capo</button></footer>
+
+<!-- File audio locali: metti beep.mp3 e siren.mp3 nella stessa cartella -->
+<audio id="beep" src="beep.mp3" loop></audio>
+<audio id="siren" src="siren.mp3" loop></audio>
+
+<script>
+/* TEMPI in secondi (aggiorna se vuoi altri valori) */
+const TEMPI = { preriscaldo: 105, colatura: 1800, trancia: 330, smerigliatura: 1800 };
+
+/* Stato */
+let faseStartTime = null;
+let colaturaStartTime = null;
+let faseTimerInterval = null;
+let colaturaTimerInterval = null;
+
+let suonoAttivo = null; // null | "beep" | "siren"
+let tranciaAttiva = false;
+let tranciaBeepStarted = false;
+let tranciaSuonata = false;
+let tranciaConfermata = false;
+let smerigliaturaAttivata = false;
+let preriscaldoConfermata = false;
+
+/* Elementi */
+const faseEl = document.getElementById('faseAttuale');
+const faseImage = document.getElementById('faseImage');
+const faseTimerEl = document.getElementById('faseTimer');
+const progressBar = document.getElementById('progressBar');
+const colaturaTotalEl = document.getElementById('colaturaTotalTimer');
+const logList = document.getElementById('logList');
+const riepilogoTable = document.getElementById('riepilogoTable');
+const beep = document.getElementById('beep');
+const siren = document.getElementById('siren');
+
+/* Utility */
+function formatTime(sec){
+  if(sec < 0) sec = 0;
+  const m = Math.floor(sec/60).toString().padStart(2,'0');
+  const s = (sec % 60).toString().padStart(2,'0');
+  return `${m}:${s}`;
+}
+function logEvent(text){
+  const time = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+  const li = document.createElement('li');
+  li.textContent = `[${time}] ${text}`;
+  logList.appendChild(li);
+}
+function addRiepilogo(fase, effettivoSec){
+  for(let i=0;i<riepilogoTable.rows.length;i++){
+    if(riepilogoTable.rows[i].cells[0].innerText === fase){
+      riepilogoTable.rows[i].cells[2].innerText = formatTime(effettivoSec);
+      return;
+    }
+  }
+}
+function stopBeep(){ try{ beep.pause(); beep.currentTime = 0; }catch(e){} }
+function stopSiren(){ try{ siren.pause(); siren.currentTime = 0; }catch(e){} }
+
+/* Generic start of a phase timer (used for preriscaldo and colatura visuals).
+   beepTime and sirenTime are thresholds (seconds remaining) >=0 to enable auto beep/siren.
+   If beepTime < 0 or sirenTime < 0 those checks are skipped by the function.
+*/
+function startFase(nome, durata, nextAction, beepTime = -1, sirenTime = -1){
+  clearInterval(faseTimerInterval);
+  faseStartTime = Date.now();
+  faseEl.textContent = nome.toUpperCase();
+  faseImage.src = `${nome}.png`;
+  faseTimerEl.classList.remove('blink');
+
+  faseTimerInterval = setInterval(()=>{
+    const elapsed = Math.floor((Date.now() - faseStartTime)/1000);
+    let remaining = durata - elapsed;
+    if(remaining < 0) remaining = 0;
+    faseTimerEl.textContent = `${formatTime(elapsed)} / ${formatTime(durata)}`;
+    const perc = Math.min((elapsed/durata)*100, 100);
+    progressBar.style.width = perc + '%';
+
+    if(remaining > Math.floor(durata*0.5)) { progressBar.style.background = '#0f0'; }
+    else if(remaining > Math.floor(durata*0.15)) { progressBar.style.background = '#ff0'; }
+    else { progressBar.style.background = '#d00'; faseTimerEl.classList.add('blink'); }
+
+    if(beepTime >= 0 && remaining <= beepTime && suonoAttivo === null){
+      // parte beep per questa fase se richiesto
+      try{ beep.play(); suonoAttivo = 'beep'; }catch(e){}
+    }
+    if(sirenTime >= 0 && remaining <= sirenTime && suonoAttivo !== 'siren'){
+      if(suonoAttivo === 'beep'){ stopBeep(); }
+      try{ siren.play(); suonoAttivo = 'siren'; }catch(e){}
+    }
+
+    if(remaining === 0){
+      clearInterval(faseTimerInterval);
+      if(nextAction) nextAction();
+    }
+  }, 1000);
+
+  logEvent(`Avvio fase ${nome}`);
+}
+
+/* =========== PRERISCALDO =========== */
+document.getElementById('startPreriscaldo').onclick = () => {
+  document.getElementById('startPreriscaldo').style.display = 'none';
+  document.getElementById('confirmPreriscaldo').style.display = 'block';
+  // preriscaldo: beep 15s prima, siren at 0
+  startFase('preriscaldo', TEMPI.preriscaldo, ()=>{}, 15, 0);
+};
+
+document.getElementById('confirmPreriscaldo').onclick = () => {
+  if(preriscaldoConfermata) return;
+  preriscaldoConfermata = true;
+  // stop suoni
+  if(suonoAttivo === 'beep'){ stopBeep(); suonoAttivo = null; }
+  if(suonoAttivo === 'siren'){ stopSiren(); suonoAttivo = null; }
+  clearInterval(faseTimerInterval);
+  const elapsed = Math.floor((Date.now() - faseStartTime)/1000);
+  addRiepilogo('Preriscaldo', elapsed);
+  logEvent('Preriscaldo confermato');
+  document.getElementById('confirmPreriscaldo').style.display = 'none';
+  document.getElementById('startColatura').style.display = 'block';
+};
+
+/* =========== COLATURA (gestisce anche TRANCIARE e SMERIGLIATURA) =========== */
+document.getElementById('startColatura').onclick = () => {
+  document.getElementById('startColatura').style.display = 'none';
+  // reset flags for trancia
+  tranciaAttiva = false;
+  tranciaBeepStarted = false;
+  tranciaSuonata = false;
+  tranciaConfermata = false;
+  smerigliaturaAttivata = false;
+
+  colaturaStartTime = Date.now();
+  // per la visuale colatura non attiviamo beep/siren globali qui (gestiti da sub-eventi)
+  startFase('colatura', TEMPI.colatura, ()=>{}, -1, -1);
+
+  clearInterval(colaturaTimerInterval);
+  colaturaTimerInterval = setInterval(()=>{
+    const elapsed = Math.floor((Date.now() - colaturaStartTime)/1000);
+    colaturaTotalEl.textContent = "Tempo totale colatura: " + formatTime(elapsed);
+
+    /* --- LOGICA TRANCIARE (basata su tempo reale dall'inizio colatura) --- */
+    if(!tranciaConfermata){
+      const tranciaRemaining = TEMPI.trancia - elapsed;
+
+      // mostra bottone 20s prima
+      if(tranciaRemaining <= 20 && !tranciaAttiva){
+        faseEl.textContent = 'TRANCIARE';
+        faseImage.src = 'trancia.png';
+        document.getElementById('confirmTrancia').style.display = 'block';
+        tranciaAttiva = true;
+      }
+
+      // beep 15s prima (una sola volta)
+      if(tranciaRemaining <= 15 && !tranciaBeepStarted && suonoAttivo === null){
+        try{ beep.play(); suonoAttivo = 'beep'; }catch(e){}
+        tranciaBeepStarted = true;
+      }
+
+      // sirena al termine del tempo di trancia (una sola volta)
+      if(tranciaRemaining <= 0 && !tranciaSuonata){
+        if(suonoAttivo === 'beep'){ stopBeep(); suonoAttivo = null; }
+        try{ siren.play(); suonoAttivo = 'siren'; }catch(e){}
+        tranciaSuonata = true;
+      }
+    }
+
+    /* --- LOGICA SMERIGLIATURA: parte solo se tempo colatura scaduto E trancia confermato --- */
+    if(elapsed >= TEMPI.smerigliatura && tranciaConfermata && !smerigliaturaAttivata){
+      smerigliaturaAttivata = true;
+      faseEl.textContent = 'SMERIGLIATURA';
+      faseImage.src = 'smeriglia.png';
+      document.getElementById('confirmSmerigliatura').style.display = 'block';
+      // se c'è un beep attivo fermalo
+      if(suonoAttivo === 'beep'){ stopBeep(); suonoAttivo = null; }
+      // avvia sirena per smerigliatura (se non già in riproduzione)
+      if(suonoAttivo !== 'siren'){
+        try{ siren.play(); suonoAttivo = 'siren'; }catch(e){}
+      }
+    }
+
+  }, 1000);
+};
+
+/* Conferma Tranciatura */
+document.getElementById('confirmTrancia').onclick = () => {
+  if(tranciaConfermata) return;
+  tranciaConfermata = true;
+
+  // stop immediato di beep o siren legati alla trancia
+  if(suonoAttivo === 'beep'){ stopBeep(); suonoAttivo = null; }
+  if(suonoAttivo === 'siren'){ stopSiren(); suonoAttivo = null; }
+
+  logEvent('Tranciatura confermata');
+  const elapsedTrancia = Math.floor((Date.now() - colaturaStartTime)/1000);
+  addRiepilogo('Tranciatura', elapsedTrancia);
+
+  document.getElementById('confirmTrancia').style.display = 'none';
+
+  // Se il tempo di colatura è già scaduto -> attiva immediatamente smerigliatura
+  const elapsedTot = Math.floor((Date.now() - colaturaStartTime)/1000);
+  if(elapsedTot >= TEMPI.smerigliatura && !smerigliaturaAttivata){
+    smerigliaturaAttivata = true;
+    faseEl.textContent = 'SMERIGLIATURA';
+    faseImage.src = 'smeriglia.png';
+    document.getElementById('confirmSmerigliatura').style.display = 'block';
+    // avvia sirena per smerigliatura
+    try{ siren.play(); suonoAttivo = 'siren'; }catch(e){}
+  } else {
+    // altrimenti aspetta che il colatura-timer arrivi a fine e lo farà
+    // (nulla da fare qui)
+  }
+};
+
+/* Conferma Smerigliatura */
+document.getElementById('confirmSmerigliatura').onclick = () => {
+  // stop suoni
+  if(suonoAttivo === 'beep'){ stopBeep(); suonoAttivo = null; }
+  if(suonoAttivo === 'siren'){ stopSiren(); suonoAttivo = null; }
+
+  clearInterval(faseTimerInterval);
+  clearInterval(colaturaTimerInterval);
+
+  const elapsedCol = Math.floor((Date.now() - colaturaStartTime)/1000);
+  addRiepilogo('Colatura', elapsedCol);
+  addRiepilogo('Smerigliatura', elapsedCol);
+  logEvent('Smerigliatura confermata');
+
+  document.getElementById('confirmSmerigliatura').style.display = 'none';
+};
+
+/* Restart */
+function restart(){
+  if(confirm("stai per resettare i tempi trascorsi fino ad ora, confermi di voler iniziare una nuova saldatura?")){
+    // fermo suoni e reindirizzo alla home
+    if(suonoAttivo === 'beep'){ stopBeep(); suonoAttivo = null; }
+    if(suonoAttivo === 'siren'){ stopSiren(); suonoAttivo = null; }
+    location.href = 'index.html';
+  }
+}
+</script>
+</body>
+</html>
