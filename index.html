@@ -3,79 +3,83 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Gestione Fasi - Index</title>
+  <title>Saldatura - Home</title>
   <style>
     body {
       font-family: Arial, sans-serif;
       background-color: #ffffff;
-      color: #000;
-      margin: 0;
-      padding: 20px;
+      color: #000000;
       text-align: center;
+      margin: 0;
+      padding: 0;
     }
 
     h1 {
-      color: #d40000;
-      font-size: 24px;
+      margin-top: 20px;
+      font-size: 28px;
+      color: #d32f2f; /* rosso */
     }
 
-    p {
-      font-size: 16px;
-      margin: 10px 0 20px;
+    .container {
+      margin-top: 20px;
     }
 
-    .button {
-      display: inline-block;
-      padding: 12px 24px;
-      margin: 10px;
-      font-size: 18px;
-      font-weight: bold;
+    img {
+      width: 200px;
+      height: auto;
+      margin: 15px 0;
+    }
+
+    button {
+      background-color: #d32f2f;
       color: #fff;
-      background-color: #d40000;
       border: none;
       border-radius: 8px;
+      padding: 12px 24px;
+      font-size: 18px;
       cursor: pointer;
-      transition: background 0.3s;
+      margin-top: 15px;
     }
 
-    .button:hover {
-      background-color: #a00000;
+    button:hover {
+      background-color: #b71c1c;
     }
 
-    footer {
-      text-align: center;
+    .info {
+      margin-top: 20px;
+      font-size: 14px;
+      color: #000;
+      padding: 0 10px;
+    }
+
+    .footer {
       margin-top: 40px;
       font-size: 12px;
-      color: #333;
-    }
-
-    footer img {
-      vertical-align: middle;
-      margin: 0 5px;
+      color: #555;
     }
   </style>
 </head>
 <body>
-  <h1>Benvenuto nella gestione saldature</h1>
-  <p>Per un corretto utilizzo imposta ad almeno 35 minuti il blocco automatico del display ed alza il volume del dispositivo !!</p>
-  
-  <button class="button" onclick="startApp()">Avvia</button>
+  <h1>Saldatura</h1>
 
-  <footer>
-    pinci ha contribuito a tenere il tempo per 
+  <div class="container">
+    <img src="home.png" alt="Home">
+    <br>
+    <button onclick="location.href='fasi.html'">Avvia</button>
+  </div>
+
+  <div class="info">
+    Per un corretto utilizzo imposta ad almeno 35 minuti il blocco automatico del display ed alza il volume del dispositivo !!
+  </div>
+
+  <div class="footer">
+    pinci ha contribuito a tenere il tempo per <br>
+    <!-- hitwebcounter Code START -->
     <a href="https://www.hitwebcounter.com/" target="_blank">
-      <img src="https://hitwebcounter.com/counter/counter.php?page=21441346&style=0030&nbdigits=5&type=page&initCount=1" 
-           title="Counters" 
-           alt="Contatore saldature" 
-           border="0" />
-    </a> 
-    saldature.
-  </footer>
-
-  <script>
-    function startApp() {
-      window.location.href = "fasi.html"; 
-    }
-  </script>
+      <img src="https://hitwebcounter.com/counter/counter.php?page=21441346&style=0030&nbdigits=5&type=page&initCount=1" title="Counters" alt="Counters" border="0" />
+    </a>
+    <!-- hitwebcounter Code END -->
+    <br> saldature.
+  </div>
 </body>
 </html>
